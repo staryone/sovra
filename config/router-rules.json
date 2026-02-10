@@ -1,0 +1,44 @@
+{
+  "version": "0.1.0",
+  "routing_levels": {
+    "level_1_local": {
+      "description": "Simple tasks handled by local LLM",
+      "examples": [
+        "casual conversation",
+        "simple factual questions",
+        "personality interactions",
+        "basic text formatting",
+        "simple translations"
+      ],
+      "confidence_threshold": 0.7
+    },
+    "level_2_local_rag": {
+      "description": "Tasks requiring memory/context retrieval",
+      "examples": [
+        "questions about past conversations",
+        "referencing stored documents",
+        "contextual follow-ups",
+        "personal preferences recall"
+      ],
+      "confidence_threshold": 0.6
+    },
+    "level_3_external": {
+      "description": "Complex tasks routed to external API",
+      "examples": [
+        "complex code generation",
+        "advanced mathematical proofs",
+        "multi-step reasoning chains",
+        "large document analysis",
+        "tasks exceeding context window"
+      ],
+      "confidence_threshold": 0.0,
+      "fallback": true
+    }
+  },
+  "classification_prompt": "Analyze the following user request and classify its complexity.\nConsider: reasoning depth required, domain expertise needed, context length, and whether RAG memory is needed.\n\nRespond with JSON: {\"level\": 1|2|3, \"confidence\": 0.0-1.0, \"reasoning\": \"brief explanation\", \"needs_rag\": true|false}",
+  "cost_limits": {
+    "max_daily_external_calls": 50,
+    "max_monthly_cost_usd": 10.0,
+    "preferred_cheap_model_first": true
+  }
+}

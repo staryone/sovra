@@ -153,6 +153,15 @@ Respond with JSON:
         Classify the complexity of a user message for smart routing.
         Returns: {"level": 1|2|3, "confidence": 0.0-1.0, "needs_rag": bool}
         """
+        # Heuristic Fast Path for complexity
+        msg_len = len(message.strip())
+        simple_keywords = ["halo", "hi", "hello", "hola", "pagi", "siang", "sore", "malam", "test", "ping", "siapa", "kamu"]
+        is_simple = any(k in message.lower() for k in simple_keywords) and msg_len < 60
+
+        if msg_len < 10 or is_simple:
+            logger.info(f"⚡ Fast path (router): '{message[:20]}...' -> Level 1")
+            return {"level": 1, "confidence": 1.0, "needs_rag": False, "reasoning": "Heuristic fast path"}
+
         prompt = f"""Classify the complexity of this request:
 "{message}"
 

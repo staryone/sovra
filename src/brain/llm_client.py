@@ -26,7 +26,7 @@ class LLMClient:
         self.host = host or os.getenv("OLLAMA_HOST", "http://localhost:11434")
         self.model = model or os.getenv("SOVRA_MODEL", "sovra-brain")
         self.context_length = context_length or int(
-            os.getenv("SOVRA_CONTEXT_LENGTH", "16384")
+            os.getenv("SOVRA_CONTEXT_LENGTH", "8192")
         )
         # Increase timeout for CPU inference (default 10m)
         self._timeout = float(os.getenv("OLLAMA_TIMEOUT", "600"))

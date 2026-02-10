@@ -26,9 +26,11 @@ class LLMClient:
         self.host = host or os.getenv("OLLAMA_HOST", "http://localhost:11434")
         self.model = model or os.getenv("SOVRA_MODEL", "sovra-brain")
         self.context_length = context_length or int(
-            os.getenv("SOVRA_CONTEXT_LENGTH", "65536")
+            os.getenv("SOVRA_CONTEXT_LENGTH", "16384")
         )
-        self._client = httpx.AsyncClient(base_url=self.host, timeout=120.0)
+        # Increase timeout for CPU inference (default 10m)
+        self._timeout = float(os.getenv("OLLAMA_TIMEOUT", "600"))
+        self._client = httpx.AsyncClient(base_url=self.host, timeout=self._timeout)
 
     async def generate(
         self,
@@ -57,6 +59,9 @@ class LLMClient:
             response.raise_for_status()
             data = response.json()
             return data.get("response", "")
+        except httpx.ReadTimeout:
+            logger.warning(f"LLM response timed out after {self._timeout}s. Model too slow.")
+            return "⏱️ [Timeout] My thought process took too long. Please try again."
         except httpx.HTTPStatusError as e:
             logger.error(f"LLM HTTP error: {e.response.status_code} - {e.response.text}")
             raise
@@ -91,6 +96,9 @@ class LLMClient:
             response.raise_for_status()
             data = response.json()
             return data.get("message", {}).get("content", "")
+        except httpx.ReadTimeout:
+            logger.warning(f"LLM chat timed out after {self._timeout}s.")
+            return "⏱️ [Timeout] I took too long to respond."
         except httpx.HTTPStatusError as e:
             logger.error(f"LLM chat error: {e.response.status_code}")
             raise

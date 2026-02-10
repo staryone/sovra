@@ -81,31 +81,39 @@ async def main():
         console.print(f"   [cyan]Autonomy:[/] {status['autonomy_level']}")
         console.print(f"   [cyan]Memories:[/] {status['memory']['long_term_count']}")
         console.print(f"   [cyan]Interactions:[/] {status['interactions']['total']}")
-        console.print(f"\n[dim]SOVRA is now autonomous. It will process tasks, learn, and evolve.[/]")
-        console.print(f"[dim]Connect via OpenClaw messaging or use the interactive shell below.[/]\n")
+        # Detect if running interactively (TTY) or as daemon (backgrounded)
+        is_interactive = sys.stdin.isatty()
 
-        # Interactive shell for direct testing
-        while not shutdown_event.is_set():
-            try:
-                user_input = await asyncio.get_event_loop().run_in_executor(
-                    None, lambda: input("[bold green]You:[/] " if False else "You: ")
-                )
-                if not user_input.strip():
-                    continue
-                if user_input.strip().lower() in ("quit", "exit", "bye"):
+        if is_interactive:
+            console.print(f"\n[dim]SOVRA is now autonomous. It will process tasks, learn, and evolve.[/]")
+            console.print(f"[dim]Type a message to chat, '/status' for status, 'quit' to exit.[/]\n")
+
+            # Interactive shell for direct testing
+            while not shutdown_event.is_set():
+                try:
+                    user_input = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: input("You: ")
+                    )
+                    if not user_input.strip():
+                        continue
+                    if user_input.strip().lower() in ("quit", "exit", "bye"):
+                        break
+                    if user_input.strip().lower() == "/status":
+                        status = bridge.get_status()
+                        console.print_json(data=status)
+                        continue
+
+                    response = await bridge.handle_message(user_input, platform="cli")
+                    console.print(f"[cyan]Sovra:[/] {response}\n")
+
+                except EOFError:
                     break
-                if user_input.strip().lower() == "/status":
-                    status = bridge.get_status()
-                    console.print_json(data=status)
-                    continue
-
-                response = await bridge.handle_message(user_input, platform="cli")
-                console.print(f"[cyan]Sovra:[/] {response}\n")
-
-            except EOFError:
-                break
-            except KeyboardInterrupt:
-                break
+                except KeyboardInterrupt:
+                    break
+        else:
+            # Daemon mode — no interactive input, just keep running
+            console.print(f"\n[dim]SOVRA running in daemon mode. Connect via OpenClaw.[/]")
+            await shutdown_event.wait()
 
     except ConnectionError as e:
         console.print(f"[red]❌ {e}[/]")

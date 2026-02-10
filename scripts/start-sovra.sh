@@ -22,7 +22,9 @@ echo -e "${NC}"
 
 # Load environment
 if [ -f "${SOVRA_DIR}/.env" ]; then
-    export $(grep -v '^#' "${SOVRA_DIR}/.env" | xargs)
+    set -a
+    source "${SOVRA_DIR}/.env"
+    set +a
 fi
 
 # Ensure Ollama is running
@@ -32,35 +34,42 @@ if ! curl -s http://localhost:11434/api/tags &>/dev/null; then
     sleep 3
 fi
 
-# Start SOVRA Brain (main Python process)
-echo -e "${GREEN}[INFO]${NC} Starting SOVRA Brain..."
-cd "${SOVRA_DIR}"
-python3 -m src.main &
-SOVRA_PID=$!
-
-# Start OpenClaw Gateway
-echo -e "${GREEN}[INFO]${NC} Starting OpenClaw Gateway..."
-openclaw start --config "${SOVRA_DIR}/config/openclaw.json" &
-OPENCLAW_PID=$!
-
-echo ""
-echo -e "${GREEN}[INFO]${NC} SOVRA is now running!"
-echo -e "${GREEN}[INFO]${NC} SOVRA Brain PID: ${SOVRA_PID}"
-echo -e "${GREEN}[INFO]${NC} OpenClaw PID: ${OPENCLAW_PID}"
-echo -e "${GREEN}[INFO]${NC} OpenClaw Web UI: http://localhost:${OPENCLAW_PORT:-3000}"
-echo ""
-echo -e "${GREEN}[INFO]${NC} Press Ctrl+C to stop all services."
-
 # Trap Ctrl+C to clean up
 cleanup() {
     echo ""
     echo -e "${GREEN}[INFO]${NC} Shutting down SOVRA..."
     kill $SOVRA_PID 2>/dev/null || true
-    kill $OPENCLAW_PID 2>/dev/null || true
     echo -e "${GREEN}[INFO]${NC} SOVRA stopped. Goodbye."
     exit 0
 }
 trap cleanup SIGINT SIGTERM
 
-# Wait for processes
-wait
+# Start SOVRA Brain (foreground — it handles its own daemon mode)
+echo -e "${GREEN}[INFO]${NC} Starting SOVRA Brain..."
+cd "${SOVRA_DIR}"
+
+# Check if OpenClaw gateway is already managed as a system service
+if command -v openclaw &>/dev/null; then
+    # OpenClaw runs as its own daemon via `openclaw gateway`
+    # It reads config from ~/.openclaw/openclaw.json automatically
+    OPENCLAW_STATUS=$(openclaw status 2>&1 || true)
+    if echo "$OPENCLAW_STATUS" | grep -qi "running"; then
+        echo -e "${GREEN}[INFO]${NC} OpenClaw gateway is already running."
+    else
+        echo -e "${GREEN}[INFO]${NC} Starting OpenClaw gateway..."
+        openclaw gateway &>/dev/null &
+        sleep 2
+    fi
+    echo -e "${GREEN}[INFO]${NC} OpenClaw Web UI: http://localhost:${OPENCLAW_PORT:-3000}"
+fi
+
+echo ""
+echo -e "${GREEN}[INFO]${NC} Starting SOVRA Brain (foreground)..."
+echo -e "${GREEN}[INFO]${NC} Press Ctrl+C to stop."
+echo ""
+
+# Run SOVRA Brain in foreground so it can accept interactive input
+python3 -m src.main
+SOVRA_PID=$!
+
+wait $SOVRA_PID 2>/dev/null || true

@@ -1,23 +1,22 @@
 {
   "agents": {
     "defaults": {
-      "maxConcurrent": 4,
       "model": {
         "primary": "ollama/sovra-brain"
       },
       "models": {
         "ollama/sovra-brain": {
-          "alias": "Sovra"
+          "alias": "Sovra",
+          "params": {
+            "temperature": 0.7,
+            "maxTokens": 2048
+          }
         }
       },
-      "subagents": {
-        "maxConcurrent": 8
-      },
-      "compaction": {
-        "mode": "safeguard"
-      },
       "workspace": "/root/.openclaw/workspace",
-      "timeoutSeconds": 600
+      "timeoutSeconds": 300,
+      "maxConcurrent": 2,
+      "contextTokens": 8192
     }
   },
   "models": {
@@ -30,31 +29,36 @@
         "models": [
           {
             "id": "sovra-brain",
-            "name": "SOVRA Brain (Qwen3 4B)",
+            "name": "SOVRA Brain (Qwen2.5 1.5B)",
             "reasoning": false,
             "input": ["text"],
             "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
-            "contextWindow": 65536,
-            "maxTokens": 8192
+            "contextWindow": 8192,
+            "maxTokens": 2048
           }
         ]
       }
     }
   },
-  "messages": {
-    "ackReactionScope": "group-mentions"
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "botToken": "${TELEGRAM_BOT_TOKEN}",
+      "dmPolicy": "pairing",
+      "groups": {
+        "*": { "requireMention": true }
+      },
+      "historyLimit": 20,
+      "streamMode": "partial"
+    }
   },
   "gateway": {
     "mode": "local",
+    "port": 18789,
+    "bind": "loopback",
     "auth": {
       "mode": "token",
-      "token": "WILL_BE_AUTO_GENERATED_BY_SETUP_SH"
-    },
-    "port": 3000,
-    "bind": "loopback",
-    "tailscale": {
-      "mode": "off",
-      "resetOnExit": false
+      "token": "${OPENCLAW_GATEWAY_TOKEN}"
     },
     "nodes": {
       "denyCommands": [
@@ -66,5 +70,8 @@
         "reminders.add"
       ]
     }
+  },
+  "messages": {
+    "ackReactionScope": "group-mentions"
   }
 }

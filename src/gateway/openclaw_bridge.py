@@ -22,6 +22,7 @@ from ..router.api_filter import APIFilter
 from ..memory.rag_pipeline import RAGPipeline
 from ..memory.memory_manager import MemoryManager
 from ..evolution.collector import InteractionCollector
+from ..security.secret_vault import SecretVault
 
 logger = logging.getLogger(__name__)
 
@@ -66,74 +67,69 @@ class OpenClawBridge:
         # Evolution
         self.collector = InteractionCollector()
 
+        # Security
+        self.vault = SecretVault()
+
         logger.info(f"🧠 SOVRA Bridge initialized: {self.personality.name}")
 
     async def handle_message(self, user_message: str, platform: str = "web") -> str:
         """
         Handle an incoming message from any platform.
-        This is the main entry point for all user interactions.
+        OpenClaw-first: single LLM call, no routing overhead.
         """
         logger.info(f"📨 [{platform}] User: {user_message[:100]}...")
 
-        # Add to short-term memory
-        self.memory.add_to_short_term("user", user_message)
+        # Handle /secret commands directly
+        if user_message.strip().startswith("/secret"):
+            cmd_body = user_message.strip()[len("/secret"):].strip()
+            return self.vault.handle_command(cmd_body)
 
-        # Check if this is a goal/task request (autonomous action)
-        decision = await self.decision_engine.evaluate(user_message)
+        try:
+            # Mask secrets before LLM sees the message
+            masked_message = self.vault.mask(user_message)
 
-        if decision.get("action") == "refuse":
-            response = "I'm sorry, but I cannot perform that action. " + decision.get("reasoning", "")
-        elif decision.get("requires_external") or decision.get("action") == "execute":
-            # Check if this needs goal planning (multi-step task)
-            estimated_steps = decision.get("estimated_steps", 1)
+            # Build system prompt with personality
+            system_prompt = self.prompt_builder.build()
 
-            if estimated_steps > 1 and decision.get("task_type") in ("shell", "file", "web"):
-                # Multi-step autonomous task → use goal planner
-                tasks = await self.goal_planner.plan(
-                    user_message,
-                    context=self.memory.get_short_term_context(),
-                    priority=TaskPriority.HIGH,
-                )
-                response = (
-                    f"I'll handle that autonomously. I've created {len(tasks)} steps:\n\n"
-                    + "\n".join([f"  {i+1}. {t.action}" for i, t in enumerate(tasks)])
-                    + "\n\nExecuting now..."
-                )
-            else:
-                # Single-step → route through smart router
-                conversation_history = self.memory.get_short_term_history()
-                system_prompt = self.prompt_builder.build(
-                    rag_context=await self._get_rag_context(user_message),
-                    conversation_context=self.memory.get_short_term_context(),
-                )
+            # Get conversation history for context
+            history = self.memory.get_short_term_history()
+            messages = history + [{"role": "user", "content": masked_message}]
 
-                result = await self.router.route(
-                    user_message,
-                    conversation_history=conversation_history,
-                    system_prompt=system_prompt,
-                )
-                response = result["response"]
-                route = result["route"]
+            # Single LLM call — direct to Ollama
+            response = await self.llm.chat(messages, system=system_prompt)
 
-                # Log the interaction for evolution
-                self.collector.log_interaction(
-                    user_input=user_message,
-                    system_prompt=system_prompt[:500],
-                    llm_response=response,
-                    route=route,
-                    metadata={"platform": platform},
-                )
-        else:
-            response = "I'll need to ask you about that — " + decision.get("reasoning", "unclear request")
+            # Unmask secrets in response (for execution context)
+            response = self.vault.unmask(response)
 
-        # Add response to short-term memory
-        self.memory.add_to_short_term("assistant", response)
+            if not response or not response.strip():
+                response = "Hmm, aku butuh waktu sebentar untuk berpikir. Coba tanya lagi ya! 😊"
 
-        # Commit exchange to long-term memory
-        await self.memory.commit_to_long_term(user_message, response)
+        except Exception as e:
+            logger.error(f"LLM call failed: {e}")
+            response = "⚠️ Maaf, ada masalah teknis. Coba lagi ya."
 
         logger.info(f"📤 [{platform}] Sovra: {response[:100]}...")
+
+        # Post-process async (non-blocking — response already sent)
+        asyncio.create_task(self._post_process(user_message, response, platform))
+
         return response
+
+    async def _post_process(self, user_message: str, response: str, platform: str):
+        """Background: save memory + log interaction. Non-blocking."""
+        try:
+            self.memory.add_to_short_term("user", user_message)
+            self.memory.add_to_short_term("assistant", response)
+            await self.memory.commit_to_long_term(user_message, response)
+            self.collector.log_interaction(
+                user_input=user_message,
+                system_prompt="",
+                llm_response=response,
+                route="direct",
+                metadata={"platform": platform},
+            )
+        except Exception as e:
+            logger.warning(f"Post-process failed (non-critical): {e}")
 
     async def _get_rag_context(self, query: str) -> str:
         """Retrieve relevant context from RAG memory."""

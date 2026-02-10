@@ -1,4 +1,5 @@
-FROM qwen3:4b
+# Using 1.5B model for speed (Qwen2.5 1.5B is fast & smart)
+FROM qwen2.5:1.5b
 
 # Set context window to 8K tokens (balanced for CPU speed/memory)
 PARAMETER num_ctx 8192

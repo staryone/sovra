@@ -1,61 +1,58 @@
 {
-  "$schema": "https://openclaw.ai/config-schema.json",
-  "version": "1.0",
-  "agent": {
-    "name": "Sovra",
-    "description": "A Sovereign & Self-Evolving AI Agent",
-    "model": {
-      "provider": "ollama",
-      "endpoint": "http://localhost:11434",
-      "model_name": "sovra-brain",
-      "api_key": "ollama-local",
-      "context_length": 65536
+  "messages": {
+    "ackReactionScope": "group-mentions"
+  },
+  "agents": {
+    "defaults": {
+      "maxConcurrent": 4,
+      "model": "ollama/sovra-brain",
+      "subagents": {
+        "maxConcurrent": 8
+      },
+      "compaction": {
+        "mode": "safeguard"
+      },
+      "workspace": "/root/.openclaw/workspace"
     }
   },
-  "skills": {
-    "enabled": [
-      "shell",
-      "file_manager",
-      "web_browser",
-      "web_search",
-      "code_runner",
-      "package_manager"
-    ],
-    "disabled": [
-      "email",
-      "calendar",
-      "social_media"
-    ]
+  "providers": {
+    "ollama": {
+      "baseUrl": "http://localhost:11434"
+    }
   },
-  "messaging": {
-    "platforms": {
-      "telegram": {
-        "enabled": false,
-        "bot_token": "",
-        "allowed_user_ids": []
-      },
-      "discord": {
-        "enabled": false,
-        "bot_token": "",
-        "allowed_server_ids": []
-      },
-      "whatsapp": {
-        "enabled": false
-      },
-      "web": {
-        "enabled": true,
-        "port": 3000
-      }
+  "gateway": {
+    "mode": "local",
+    "auth": {
+      "mode": "token",
+      "token": "WILL_BE_AUTO_GENERATED_BY_SETUP_SH"
+    },
+    "port": 3000,
+    "bind": "loopback",
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": false
+    },
+    "nodes": {
+      "denyCommands": [
+        "camera.snap",
+        "camera.clip",
+        "screen.record",
+        "calendar.add",
+        "contacts.add",
+        "reminders.add"
+      ]
     }
   },
   "security": {
     "sandbox_mode": false,
-    "allowed_directories": ["/"],
-    "max_command_timeout_seconds": 300,
-    "blocked_commands": ["rm -rf /", ":(){ :|:& };:", "dd if=/dev/zero of=/dev/sda"]
+    "blocked_commands": [
+      "rm -rf /",
+      ":(){ :|:& };:",
+      "dd if=/dev/zero of=/dev/sda"
+    ]
   },
   "memory": {
     "enabled": true,
-    "persistence_path": "./data/openclaw_memory"
+    "persistence_path": "/root/.openclaw/memory"
   }
 }

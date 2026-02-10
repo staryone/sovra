@@ -133,13 +133,93 @@ install_ollama() {
     log_info "Ollama setup complete!"
 }
 
-# --- Step 4: Install OpenClaw ---
+# --- Step 4: Install OpenClaw & Auto-Configure ---
 install_openclaw() {
     if command -v openclaw &>/dev/null; then
         log_info "OpenClaw already installed."
     else
         log_info "Installing OpenClaw..."
         curl -fsSL https://openclaw.ai/install.sh | bash
+    fi
+
+    # --- Skip interactive onboarding, generate config directly ---
+    OPENCLAW_DIR="$HOME/.openclaw"
+    OPENCLAW_CONFIG="$OPENCLAW_DIR/config.json"
+    mkdir -p "$OPENCLAW_DIR/workspace"
+    mkdir -p "$OPENCLAW_DIR/memory"
+
+    if [ -f "$OPENCLAW_CONFIG" ]; then
+        log_info "OpenClaw config already exists at $OPENCLAW_CONFIG"
+        log_info "Skipping auto-config. Edit manually if needed."
+    else
+        # Generate a random auth token
+        AUTH_TOKEN=$(openssl rand -hex 24)
+
+        log_info "Generating OpenClaw config (skipping interactive onboard)..."
+        cat > "$OPENCLAW_CONFIG" << OCEOF
+{
+  "messages": {
+    "ackReactionScope": "group-mentions"
+  },
+  "agents": {
+    "defaults": {
+      "maxConcurrent": 4,
+      "model": "ollama/sovra-brain",
+      "subagents": {
+        "maxConcurrent": 8
+      },
+      "compaction": {
+        "mode": "safeguard"
+      },
+      "workspace": "$OPENCLAW_DIR/workspace"
+    }
+  },
+  "providers": {
+    "ollama": {
+      "baseUrl": "http://localhost:11434"
+    }
+  },
+  "gateway": {
+    "mode": "local",
+    "auth": {
+      "mode": "token",
+      "token": "$AUTH_TOKEN"
+    },
+    "port": 3000,
+    "bind": "loopback",
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": false
+    },
+    "nodes": {
+      "denyCommands": [
+        "camera.snap", "camera.clip", "screen.record",
+        "calendar.add", "contacts.add", "reminders.add"
+      ]
+    }
+  },
+  "security": {
+    "sandbox_mode": false,
+    "blocked_commands": ["rm -rf /", ":(){ :|:& };:", "dd if=/dev/zero of=/dev/sda"]
+  },
+  "memory": {
+    "enabled": true,
+    "persistence_path": "$OPENCLAW_DIR/memory"
+  }
+}
+OCEOF
+        log_info "✅ OpenClaw config written to $OPENCLAW_CONFIG"
+        log_info "🔑 Auth token: $AUTH_TOKEN"
+        log_info "   (Save this token — you'll need it to access the gateway)"
+
+        # Save token to .env for reference
+        if [ -f "${SOVRA_DIR}/.env" ]; then
+            if ! grep -q "OPENCLAW_AUTH_TOKEN" "${SOVRA_DIR}/.env"; then
+                echo "" >> "${SOVRA_DIR}/.env"
+                echo "# --- OpenClaw Auth (auto-generated) ---" >> "${SOVRA_DIR}/.env"
+                echo "OPENCLAW_AUTH_TOKEN=$AUTH_TOKEN" >> "${SOVRA_DIR}/.env"
+            fi
+        fi
     fi
 
     log_info "OpenClaw setup complete!"

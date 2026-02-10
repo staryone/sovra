@@ -144,9 +144,8 @@ install_openclaw() {
 
     # --- Skip interactive onboarding, generate config directly ---
     OPENCLAW_DIR="$HOME/.openclaw"
-    OPENCLAW_CONFIG="$OPENCLAW_DIR/config.json"
+    OPENCLAW_CONFIG="$OPENCLAW_DIR/openclaw.json"
     mkdir -p "$OPENCLAW_DIR/workspace"
-    mkdir -p "$OPENCLAW_DIR/memory"
 
     if [ -f "$OPENCLAW_CONFIG" ]; then
         log_info "OpenClaw config already exists at $OPENCLAW_CONFIG"
@@ -158,26 +157,50 @@ install_openclaw() {
         log_info "Generating OpenClaw config (skipping interactive onboard)..."
         cat > "$OPENCLAW_CONFIG" << OCEOF
 {
-  "messages": {
-    "ackReactionScope": "group-mentions"
-  },
   "agents": {
     "defaults": {
       "maxConcurrent": 4,
-      "model": "ollama/sovra-brain",
+      "model": {
+        "primary": "ollama/sovra-brain"
+      },
+      "models": {
+        "ollama/sovra-brain": {
+          "alias": "Sovra"
+        }
+      },
       "subagents": {
         "maxConcurrent": 8
       },
       "compaction": {
         "mode": "safeguard"
       },
-      "workspace": "$OPENCLAW_DIR/workspace"
+      "workspace": "$OPENCLAW_DIR/workspace",
+      "timeoutSeconds": 600
     }
   },
-  "providers": {
-    "ollama": {
-      "baseUrl": "http://localhost:11434"
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "ollama": {
+        "baseUrl": "http://127.0.0.1:11434/v1",
+        "apiKey": "ollama",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "sovra-brain",
+            "name": "SOVRA Brain (Qwen3 4B)",
+            "reasoning": false,
+            "input": ["text"],
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "contextWindow": 65536,
+            "maxTokens": 8192
+          }
+        ]
+      }
     }
+  },
+  "messages": {
+    "ackReactionScope": "group-mentions"
   },
   "gateway": {
     "mode": "local",
@@ -197,14 +220,6 @@ install_openclaw() {
         "calendar.add", "contacts.add", "reminders.add"
       ]
     }
-  },
-  "security": {
-    "sandbox_mode": false,
-    "blocked_commands": ["rm -rf /", ":(){ :|:& };:", "dd if=/dev/zero of=/dev/sda"]
-  },
-  "memory": {
-    "enabled": true,
-    "persistence_path": "$OPENCLAW_DIR/memory"
   }
 }
 OCEOF

@@ -1,24 +1,48 @@
 {
-  "messages": {
-    "ackReactionScope": "group-mentions"
-  },
   "agents": {
     "defaults": {
       "maxConcurrent": 4,
-      "model": "ollama/sovra-brain",
+      "model": {
+        "primary": "ollama/sovra-brain"
+      },
+      "models": {
+        "ollama/sovra-brain": {
+          "alias": "Sovra"
+        }
+      },
       "subagents": {
         "maxConcurrent": 8
       },
       "compaction": {
         "mode": "safeguard"
       },
-      "workspace": "/root/.openclaw/workspace"
+      "workspace": "/root/.openclaw/workspace",
+      "timeoutSeconds": 600
     }
   },
-  "providers": {
-    "ollama": {
-      "baseUrl": "http://localhost:11434"
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "ollama": {
+        "baseUrl": "http://127.0.0.1:11434/v1",
+        "apiKey": "ollama",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "sovra-brain",
+            "name": "SOVRA Brain (Qwen3 4B)",
+            "reasoning": false,
+            "input": ["text"],
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "contextWindow": 65536,
+            "maxTokens": 8192
+          }
+        ]
+      }
     }
+  },
+  "messages": {
+    "ackReactionScope": "group-mentions"
   },
   "gateway": {
     "mode": "local",
@@ -42,17 +66,5 @@
         "reminders.add"
       ]
     }
-  },
-  "security": {
-    "sandbox_mode": false,
-    "blocked_commands": [
-      "rm -rf /",
-      ":(){ :|:& };:",
-      "dd if=/dev/zero of=/dev/sda"
-    ]
-  },
-  "memory": {
-    "enabled": true,
-    "persistence_path": "/root/.openclaw/memory"
   }
 }
